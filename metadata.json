@@ -1,0 +1,6 @@
+{
+  "name": "OCT15",
+  "description": "Your life, remembered. A personal memory journal to preserve meaningful moments, attach photos, view calendar stickers, and receive anniversary reminders.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

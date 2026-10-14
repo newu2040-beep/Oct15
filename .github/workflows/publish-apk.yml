@@ -1,0 +1,111 @@
+name: Publish Debug APK Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'apk-distribution/app-debug.apk'
+      - 'apk-distribution/app-debug.apk.sha256'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-release:
+    name: Publish APK to GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Validate Pre-compiled APK
+        id: validate
+        run: |
+          set -euo pipefail
+
+          APK_PATH="apk-distribution/app-debug.apk"
+          CHECKSUM_PATH="apk-distribution/app-debug.apk.sha256"
+
+          echo "Validating existence of $APK_PATH..."
+          if [ ! -f "$APK_PATH" ]; then
+            echo "::error::APK file $APK_PATH not found!"
+            exit 1
+          fi
+
+          if [ ! -s "$APK_PATH" ]; then
+            echo "::error::APK file $APK_PATH is empty!"
+            exit 1
+          fi
+
+          if [ ! -f "$CHECKSUM_PATH" ]; then
+            echo "::error::Checksum file $CHECKSUM_PATH not found!"
+            exit 1
+          fi
+
+          echo "Verifying SHA-256 checksum..."
+          (cd apk-distribution && sha256sum -c app-debug.apk.sha256)
+
+          echo "Verifying APK archive integrity..."
+          unzip -tq "$APK_PATH"
+
+          APK_SIZE=$(stat -c%s "$APK_PATH")
+          APK_SIZE_HUMAN=$(ls -lh "$APK_PATH" | awk '{print $5}')
+          APK_SHA256=$(sha256sum "$APK_PATH" | awk '{print $1}')
+
+          echo "apk_size=$APK_SIZE" >> "$GITHUB_OUTPUT"
+          echo "apk_size_human=$APK_SIZE_HUMAN" >> "$GITHUB_OUTPUT"
+          echo "apk_sha256=$APK_SHA256" >> "$GITHUB_OUTPUT"
+
+          echo "APK successfully verified."
+
+      - name: Create GitHub Release and Upload APK
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          TAG_NAME="debug-apk-build-${{ github.run_number }}-${{ github.run_attempt }}"
+          RELEASE_TITLE="OCT15 Debug APK - Build ${{ github.run_number }}"
+          APK_FILE="apk-distribution/app-debug.apk"
+
+          NOTES="### OCT15 Debug APK Release
+
+          **Build:** #${{ github.run_number }} (Attempt ${{ github.run_attempt }})
+          **Commit:** ${{ github.sha }}
+          **File:** \`app-debug.apk\`
+          **File Size:** ${{ steps.validate.outputs.apk_size_human }} (${{ steps.validate.outputs.apk_size }} bytes)
+          **SHA-256:** \`${{ steps.validate.outputs.apk_sha256 }}\`
+
+          #### Direct Download
+          [Download app-debug.apk](https://github.com/${{ github.repository }}/releases/latest/download/app-debug.apk)
+          "
+
+          echo "Creating release $TAG_NAME..."
+          gh release create "$TAG_NAME" \
+            "$APK_FILE" \
+            --title "$RELEASE_TITLE" \
+            --notes "$NOTES" \
+            --latest
+
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
+          LATEST_DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/latest/download/app-debug.apk"
+
+          echo "release_tag=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          echo "release_url=$RELEASE_URL" >> "$GITHUB_OUTPUT"
+          echo "download_url=$LATEST_DOWNLOAD_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Write Job Summary
+        run: |
+          cat << 'EOF' >> "$GITHUB_STEP_SUMMARY"
+          ## 🚀 OCT15 Debug APK Published
+
+          * **Release Tag:** `${{ steps.release.outputs.release_tag }}`
+          * **APK Size:** ${{ steps.validate.outputs.apk_size_human }} (${{ steps.validate.outputs.apk_size }} bytes)
+          * **SHA-256:** `${{ steps.validate.outputs.apk_sha256 }}`
+          * **Release Page:** [View Release](${{ steps.release.outputs.release_url }})
+          * **Permanent Direct APK Download URL:** [Download app-debug.apk](${{ steps.release.outputs.download_url }})
+          EOF

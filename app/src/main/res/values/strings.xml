@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">OCT15</string>
+    <string name="tagline">Your life, remembered.</string>
+    <string name="welcome_headline">Every moment deserves a place.</string>
+    <string name="welcome_subheadline">Save your special moments, get reminded, live them again.</string>
+    <string name="developer_credit">Made with love by Rahul Shah.</string>
+</resources>
